@@ -35,6 +35,10 @@ pub fn cbtf_type_derive(input: TokenStream) -> TokenStream {
         .iter()
         .map(|f| gen_reader_field(f.ident.as_ref().unwrap(), &f.ty));
 
+    let write_insts = fields
+        .iter()
+        .map(|f| gen_write_inst(f.ident.as_ref().unwrap(), &f.ty));
+
     quote! {
         impl #name {
             pub(super) fn from_bytes(
@@ -53,6 +57,15 @@ pub fn cbtf_type_derive(input: TokenStream) -> TokenStream {
                 Ok(#name {
                     #( #reader_fields )*
                 })
+            }
+
+            pub(crate) fn write<W: std::io::Write>(
+                &self,
+                w: &mut W,
+                endianness: &crate::cbtf::Endianness,
+            ) -> Result<()> {
+                #( #write_insts )*
+                Ok(())
             }
         }
     }
@@ -123,6 +136,31 @@ fn gen_reader_field(ident: &Ident, r#type: &Type) -> proc_macro2::TokenStream {
         },
         "i32" => quote! {
             #ident: endianness.i32_from_reader(reader)?,
+        },
+        ty => panic!("Unsupported field type ({ty})"),
+    }
+}
+
+// Generate per-field write instructions.
+fn gen_write_inst(ident: &Ident, r#type: &Type) -> proc_macro2::TokenStream {
+    let ty = match r#type {
+        Type::Path(tp) => &tp.path,
+        _ => panic!("Field {ident:?} is not a plain type"),
+    };
+
+    match ty.to_token_stream().to_string().as_str() {
+        // FIXME
+        "u8" => quote! {
+            w.write_all(self.#ident)?;
+        },
+        "u16" => quote! {
+            endianness.write_u16(w, self.#ident)?;
+        },
+        "u32" => quote! {
+            endianness.write_u32(w, self.#ident)?;
+        },
+        "i32" => quote! {
+            endianness.write_i32(w, self.#ident)?;
         },
         ty => panic!("Unsupported field type ({ty})"),
     }
