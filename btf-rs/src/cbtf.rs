@@ -5,10 +5,13 @@
 
 #![allow(non_camel_case_types, dead_code)]
 
-use std::{io::Read, mem};
+use std::{
+    io::{Read, Write},
+    mem,
+};
 
 use btf_rs_derive::cbtf_type;
-use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::{Error, Result};
 
@@ -70,6 +73,30 @@ impl Endianness {
             Endianness::Little => reader.read_i32::<LittleEndian>()?,
             Endianness::Big => reader.read_i32::<BigEndian>()?,
         })
+    }
+
+    fn write_u16<W: Write>(&self, w: &mut W, val: u16) -> Result<()> {
+        match &self {
+            Endianness::Little => w.write_u16::<LittleEndian>(val)?,
+            Endianness::Big => w.write_u16::<BigEndian>(val)?,
+        }
+        Ok(())
+    }
+
+    fn write_u32<W: Write>(&self, w: &mut W, val: u32) -> Result<()> {
+        match &self {
+            Endianness::Little => w.write_u32::<LittleEndian>(val)?,
+            Endianness::Big => w.write_u32::<BigEndian>(val)?,
+        }
+        Ok(())
+    }
+
+    fn write_i32<W: Write>(&self, w: &mut W, val: i32) -> Result<()> {
+        match &self {
+            Endianness::Little => w.write_i32::<LittleEndian>(val)?,
+            Endianness::Big => w.write_i32::<BigEndian>(val)?,
+        }
+        Ok(())
     }
 }
 

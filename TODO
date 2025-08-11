@@ -1,0 +1,57 @@
+Goals
+=====
+
+- Writing BTF from scratch.
+- Extending an existing BTF.
+- Merging BTF and 1-n splits BTF. Allows extending a split BTF using 3 then 2.
+  => Would allow attaching a unified BTF representation to BPF programs and
+     use BTF ids to allow handling all types at runtime.
+
+API
+===
+
+Use an optional base `Btf` as a ref, write new data to internal maps.
+
+- A dedicated `BtfBuilder`:
+  + `BtfBuilder::new()`
+  + `BtfBuilder::from_btf(&Btf)`
+
+- `BtfBuilder::add_string(&mut self, s: String) -> Result<u32>`.
+
+- `BtfBuilder::add_type(&mut self, ty: Type) -> Result<u32>`.
+
+- `BtfBuilder::merge_split_btf(&mut self, &Btf) -> Result<()>` — Merges
+  `Btf::split()` aka. get all its strings and types and write them as if it
+  were new data. `BtfBuilder::merge_btf(&mut self, &Btf) -> Result<()>` to also
+  allow merging `Btf::base()`?
+
+- `BtfBuilder::to_btf(&self) -> Result<Btf>`. How to cover a split base `Btf`?
+
+- `BtfBuilder::write(&self, &mut Write)` — issue the full representation.
+
+- `BtfBuilder::write_split(&self, &mut Write)` — issue the split (added
+  strings / types) only.
+
+- Move `Btf` API into a trait and implement it there too => required to get
+  type and strings ids and be able to reference them. Should `BtfBuilder` be
+  `Btf` directly?
+
+- Use a `CachedBtfSection` internally for new strings and types?
+  + Can implement strings / types writing ops itself.
+  + Can share a write op trait with `MmapBtfSection` to write raw BTF data,
+    allowing to not rely on getters and making the mmap backend just a raw copy
+    of the full data.
+
+Deduplication
+=============
+
+- Str dedup: only insert after failed lookup should already the base `Btf` +
+  added strings map.
+  + Lookup; should already cover the base + added strings.
+  + Reuse offset if there's a match.
+  + Otherwise insert new string.
+
+- Types dedup:
+  + Lookup by name; should already cover the base + added types + anon types.
+  + Compare returned `Type`. Reuse id if match.
+  + Otherwise insert new type.
