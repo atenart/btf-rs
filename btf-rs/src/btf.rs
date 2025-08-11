@@ -4,7 +4,7 @@
 use std::{
     convert::AsRef,
     fs::File,
-    io::{BufReader, Cursor, Read},
+    io::{BufReader, Cursor, Read, Write},
     path::Path,
     sync::Arc,
 };
@@ -387,6 +387,26 @@ impl Type {
         Self::from_reader(&mut Cursor::new(buf), endianness, bt)
     }
 
+    // Write the Type as a valid BTF representation.
+    pub(crate) fn write(&self, w: &mut dyn Write, endianness: cbtf::Endianness) -> Result<()> {
+        macro_rules! write_kinds {
+            ($( $ty:ident ),*) => {
+                match &self {
+                    Type::Void => Err(Error::OpNotSupp(
+                        "cannot write a BTF represention of 'void'".to_string(),
+                    )),
+                    $(
+                        Type::$ty(inner) => inner.write(w, endianness),
+                    )*
+                }
+            };
+        }
+        write_kinds!(
+            Int, Ptr, Array, Struct, Union, Enum, Fwd, Typedef, Volatile, Const, Restrict, Func,
+            FuncProto, Var, Datasec, Float, DeclTag, TypeTag, Enum64, LocParam, LocProto, LocSec
+        )
+    }
+
     /// Returns an `str` representation of the [`Type`].
     pub fn name(&self) -> &'static str {
         match &self {
@@ -545,6 +565,11 @@ impl Struct {
         Ok(Struct { btf_type, members })
     }
 
+    fn write(&self, w: &mut dyn Write, endianness: cbtf::Endianness) -> Result<()> {
+        self.btf_type.write(w, endianness)?;
+        self.members.iter().try_for_each(|m| m.write(w, endianness))
+    }
+
     pub fn size(&self) -> usize {
         self.btf_type
             .size()
@@ -578,6 +603,10 @@ impl Member {
             kind_flag,
             btf_member: cbtf::btf_member::from_reader(reader, endianness)?,
         })
+    }
+
+    fn write(&self, w: &mut dyn Write, endianness: cbtf::Endianness) -> Result<()> {
+        self.btf_member.write(w, endianness)
     }
 
     pub fn bit_offset(&self) -> u32 {

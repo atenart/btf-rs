@@ -34,6 +34,9 @@ pub fn cbtf_type_derive(input: TokenStream) -> TokenStream {
     let reader_fields = fields
         .iter()
         .map(|f| gen_cbtf_reader_field(f.ident.as_ref().unwrap(), &f.ty));
+    let writer_fields = fields
+        .iter()
+        .map(|f| gen_cbtf_write_inst(f.ident.as_ref().unwrap(), &f.ty));
 
     quote! {
         impl #name {
@@ -53,6 +56,15 @@ pub fn cbtf_type_derive(input: TokenStream) -> TokenStream {
                 Ok(#name {
                     #( #reader_fields )*
                 })
+            }
+
+            pub(crate) fn write(
+                &self,
+                w: &mut dyn std::io::Write,
+                endianness: crate::cbtf::Endianness,
+            ) -> crate::Result<()> {
+                #( #writer_fields )*
+                Ok(())
             }
         }
     }
@@ -131,6 +143,29 @@ fn gen_cbtf_reader_field(ident: &Ident, r#type: &Type) -> proc_macro2::TokenStre
         ty => panic!("Unsupported field type ({ty})"),
     }
 }
+// Generate per-field write instructions.
+fn gen_cbtf_write_inst(ident: &Ident, r#type: &Type) -> proc_macro2::TokenStream {
+    let ty = match r#type {
+        Type::Path(tp) => &tp.path,
+        _ => panic!("Field {ident:?} is not a plain type"),
+    };
+
+    match ty.to_token_stream().to_string().as_str() {
+        "u8" => quote! {
+            w.write_u8(self.#ident)?;
+        },
+        "u16" => quote! {
+            endianness.write_u16(w, self.#ident)?;
+        },
+        "u32" => quote! {
+            endianness.write_u32(w, self.#ident)?;
+        },
+        "i32" => quote! {
+            endianness.write_i32(w, self.#ident)?;
+        },
+        ty => panic!("Unsupported field type ({ty})"),
+    }
+}
 
 #[proc_macro_attribute]
 pub fn btf_type(_: TokenStream, item: TokenStream) -> TokenStream {
@@ -166,6 +201,9 @@ pub fn btf_type_derive(input: TokenStream) -> TokenStream {
     let reader_fields = fields
         .iter()
         .map(|f| gen_btf_reader_field(f.ident.as_ref().unwrap(), &f.ty));
+    let writer_fields = fields
+        .iter()
+        .map(|f| gen_btf_writer_field(f.ident.as_ref().unwrap(), &f.ty));
 
     quote! {
         impl #name {
@@ -177,6 +215,15 @@ pub fn btf_type_derive(input: TokenStream) -> TokenStream {
                 Ok(#name {
                     #( #reader_fields )*
                 })
+            }
+
+            pub(super) fn write(
+                &self,
+                writer: &mut dyn std::io::Write,
+                endianness: crate::cbtf::Endianness,
+            ) -> crate::Result<()> {
+                #( #writer_fields )*
+                Ok(())
             }
         }
     }
@@ -219,5 +266,32 @@ fn gen_btf_reader_field(ident: &Ident, r#type: &Type) -> proc_macro2::TokenStrea
 
     quote! {
         #ident: #ty::from_reader(reader, endianness)?,
+    }
+}
+
+// Generate inner btf::Type struct field writers.
+fn gen_btf_writer_field(ident: &Ident, r#type: &Type) -> proc_macro2::TokenStream {
+    let ty = match r#type {
+        Type::Path(tp) => &tp.path,
+        _ => panic!("{ident:?} is not a plain type"),
+    };
+
+    // Handle vectors.
+    if let Some(last) = ty.segments.last() {
+        if last.ident == "Vec" {
+            if let PathArguments::AngleBracketed(args) = &last.arguments {
+                for arg in args.args.iter() {
+                    if matches!(arg, GenericArgument::Type(_)) {
+                        return quote! {
+                            self.#ident.iter().try_for_each(|elem| elem.write(writer, endianness))?;
+                        };
+                    }
+                }
+            }
+        }
+    }
+
+    quote! {
+        self.#ident.write(writer, endianness)?;
     }
 }

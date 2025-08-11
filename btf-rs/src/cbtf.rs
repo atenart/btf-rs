@@ -5,10 +5,13 @@
 
 #![allow(non_camel_case_types, dead_code)]
 
-use std::{io::Read, mem};
+use std::{
+    io::{Read, Write},
+    mem,
+};
 
 use btf_rs_derive::cbtf_type;
-use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::{Error, Result};
 
@@ -71,6 +74,30 @@ impl Endianness {
             Endianness::Little => reader.read_i32::<LittleEndian>()?,
             Endianness::Big => reader.read_i32::<BigEndian>()?,
         })
+    }
+
+    fn write_u16(&self, w: &mut dyn Write, val: u16) -> Result<()> {
+        match &self {
+            Endianness::Little => w.write_u16::<LittleEndian>(val)?,
+            Endianness::Big => w.write_u16::<BigEndian>(val)?,
+        }
+        Ok(())
+    }
+
+    fn write_u32(&self, w: &mut dyn Write, val: u32) -> Result<()> {
+        match &self {
+            Endianness::Little => w.write_u32::<LittleEndian>(val)?,
+            Endianness::Big => w.write_u32::<BigEndian>(val)?,
+        }
+        Ok(())
+    }
+
+    fn write_i32(&self, w: &mut dyn Write, val: i32) -> Result<()> {
+        match &self {
+            Endianness::Little => w.write_i32::<LittleEndian>(val)?,
+            Endianness::Big => w.write_i32::<BigEndian>(val)?,
+        }
+        Ok(())
     }
 }
 
@@ -242,6 +269,19 @@ impl btf_header {
         }
 
         Ok((header, endianness))
+    }
+
+    pub(super) fn write(&self, writer: &mut dyn Write, endianness: Endianness) -> Result<()> {
+        endianness.write_u16(writer, self.magic)?;
+        writer.write_u8(self.version)?;
+        writer.write_u8(self.flags)?;
+        endianness.write_u32(writer, self.hdr_len)?;
+        endianness.write_u32(writer, self.type_off)?;
+        endianness.write_u32(writer, self.type_len)?;
+        endianness.write_u32(writer, self.str_off)?;
+        endianness.write_u32(writer, self.str_len)?;
+        endianness.write_u32(writer, self.layout_off)?;
+        endianness.write_u32(writer, self.layout_len)
     }
 }
 
