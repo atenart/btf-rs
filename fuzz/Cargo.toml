@@ -1,0 +1,20 @@
+[package]
+name = "btf-rs-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+btf-rs = { path = "../btf-rs", features = ["fuzzing"] }
+libfuzzer-sys = "0.4"
+memmap2 = "0.9"
+
+[[bin]]
+name = "btf_section"
+path = "fuzz_targets/btf_section.rs"
+test = false
+doc = false
+bench = false

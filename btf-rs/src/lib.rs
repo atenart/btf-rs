@@ -167,3 +167,6 @@ mod section;
 pub use btf::*;
 pub use error::*;
 pub use section::BtfSection;
+
+#[cfg(feature = "fuzzing")]
+pub mod fuzz;
