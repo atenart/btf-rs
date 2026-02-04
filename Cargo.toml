@@ -11,3 +11,4 @@ members = [
     "btf-rs",
     "btf-rs-derive",
 ]
+exclude = ["fuzz"]
