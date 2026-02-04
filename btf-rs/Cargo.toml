@@ -16,6 +16,7 @@ edition.workspace = true
 maintenance = { status = "actively-developed" }
 
 [dependencies]
+arbitrary = { version = "1", optional = true }
 btf-rs-derive = { path = "../btf-rs-derive", version = "2.0" }
 byteorder = "1.5"
 bzip2 = { version = "0.6", optional = true }
@@ -34,6 +35,7 @@ clap = { version = "4.5", features = ["derive"] }
 test-case = "3.2"
 
 [features]
+fuzzing = ["dep:arbitrary"]
 elf = ["dep:elf"]
 elf-compression = ["elf", "dep:bzip2", "dep:flate2", "dep:liblzma", "dep:zstd"]
 regex = ["dep:regex"]
