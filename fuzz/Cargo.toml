@@ -18,3 +18,10 @@ path = "fuzz_targets/btf_section.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "types"
+path = "fuzz_targets/types.rs"
+test = false
+doc = false
+bench = false
