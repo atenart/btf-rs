@@ -8,9 +8,17 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-btf-rs = { path = "../btf-rs", features = ["fuzzing"] }
+btf-rs = { path = "../btf-rs", features = ["fuzzing", "regex"] }
 libfuzzer-sys = "0.4"
 memmap2 = "0.9"
+regex = "1.12"
+
+[[bin]]
+name = "btf_api"
+path = "fuzz_targets/btf_api.rs"
+test = false
+doc = false
+bench = false
 
 [[bin]]
 name = "btf_section"
