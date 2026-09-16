@@ -324,6 +324,9 @@ pub enum Type {
     DeclTag(DeclTag),
     TypeTag(TypeTag),
     Enum64(Enum64),
+    LocParam(LocParam),
+    LocSec(LocSec),
+    LocProto(LocProto),
 }
 
 impl Type {
@@ -355,6 +358,9 @@ impl Type {
             BtfKind::DeclTag => Type::DeclTag(DeclTag::from_reader(reader, endianness, bt)?),
             BtfKind::TypeTag => Type::TypeTag(TypeTag::new(bt)),
             BtfKind::Enum64 => Type::Enum64(Enum64::from_reader(reader, endianness, bt)?),
+            BtfKind::LocParam => Type::LocParam(LocParam::from_reader(reader, endianness, bt)?),
+            BtfKind::LocProto => Type::LocProto(LocProto::from_reader(reader, endianness, bt)?),
+            BtfKind::LocSec => Type::LocSec(LocSec::from_reader(reader, endianness, bt)?),
             BtfKind::Unknown => return Err(Error::UnknownKind(bt.kind())),
         })
     }
@@ -391,6 +397,9 @@ impl Type {
             Type::DeclTag(_) => "decl-tag",
             Type::TypeTag(_) => "type-tag",
             Type::Enum64(_) => "enum64",
+            Type::LocParam(_) => "loc-param",
+            Type::LocProto(_) => "loc-proto",
+            Type::LocSec(_) => "loc-sec",
         }
     }
 
@@ -1098,5 +1107,204 @@ impl Enum64Member {
 impl BtfType for Enum64Member {
     fn get_name_offset(&self) -> Option<u32> {
         Some(self.btf_enum64.name_off)
+    }
+}
+
+/// Rust representation for BTF type `BTF_KIND_LOC_PARAM`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocParam {
+    btf_type: cbtf::btf_type,
+    loc_param: cbtf::btf_loc_param,
+    // This hold raw data, do not expose as a proper Rust type.
+    values: Vec<cbtf::btfrs_loc_param_value>,
+}
+
+impl LocParam {
+    fn from_reader<R: Read>(
+        reader: &mut R,
+        endianness: &cbtf::Endianness,
+        btf_type: cbtf::btf_type,
+    ) -> Result<LocParam> {
+        let loc_param = cbtf::btf_loc_param::from_reader(reader, endianness)?;
+
+        let mut values = Vec::new();
+        for _ in 0..btf_type.vlen() {
+            values.push(cbtf::btfrs_loc_param_value::from_reader(
+                reader, endianness,
+            )?);
+        }
+
+        Ok(LocParam {
+            btf_type,
+            loc_param,
+            values,
+        })
+    }
+
+    pub fn addr(&self) -> LocAddr {
+        let flags = self.loc_param.flags;
+        let vlen = self.btf_type.vlen();
+
+        // Get the const/offset index and check vlen to allow unwrapping the
+        // values var-length array accesses below.
+        let offset = match vlen {
+            1 | 2 if flags & cbtf::BTF_LOC_PARAM_OFFSET == 0 => 0,
+            2 | 3 if flags & cbtf::BTF_LOC_PARAM_OFFSET == cbtf::BTF_LOC_PARAM_OFFSET => 1,
+            _ => return LocAddr::Unknown,
+        };
+
+        // Retrieve the const/offset value, if any.
+        let mut val = None;
+        if flags & (cbtf::BTF_LOC_PARAM_CONST | cbtf::BTF_LOC_PARAM_OFFSET) != 0 {
+            val = Some(match vlen - offset {
+                1 => self.values.get(offset as usize).unwrap().value as u64,
+                2 => {
+                    self.values.get(offset as usize).unwrap().value as u64
+                        | (self.values.get(offset as usize + 1).unwrap().value as u64) << 32
+                }
+                _ => unreachable!(),
+            });
+        }
+
+        // Construct the location information, strictly checking the definition
+        // is genuine.
+        if flags == cbtf::BTF_LOC_PARAM_CONST {
+            LocAddr::UnsignedConst(val.unwrap())
+        } else if flags == cbtf::BTF_LOC_PARAM_CONST | cbtf::BTF_LOC_PARAM_SIGNED {
+            LocAddr::SignedConst(val.unwrap() as i64)
+        } else if flags == cbtf::BTF_LOC_PARAM_CONST | cbtf::BTF_LOC_PARAM_ADDR {
+            LocAddr::Address(val.unwrap())
+        } else if (flags & !cbtf::BTF_LOC_PARAM_DEREF) == cbtf::BTF_LOC_PARAM_REG {
+            match vlen {
+                1 => LocAddr::Reg(self.values.first().unwrap().value),
+                2 => LocAddr::Regs(
+                    self.values.first().unwrap().value,
+                    self.values.get(1).unwrap().value,
+                ),
+                _ => unreachable!(),
+            }
+        } else if (flags & !cbtf::BTF_LOC_PARAM_DEREF)
+            == (cbtf::BTF_LOC_PARAM_REG | cbtf::BTF_LOC_PARAM_OFFSET)
+        {
+            LocAddr::RegOffset(self.values.first().unwrap().value, val.unwrap() as i128)
+        } else {
+            LocAddr::Unknown
+        }
+    }
+
+    pub fn is_deref(&self) -> bool {
+        self.loc_param.flags == cbtf::BTF_LOC_PARAM_REG | cbtf::BTF_LOC_PARAM_DEREF
+            || self.loc_param.flags
+                == cbtf::BTF_LOC_PARAM_REG | cbtf::BTF_LOC_PARAM_OFFSET | cbtf::BTF_LOC_PARAM_DEREF
+    }
+}
+
+/// FIXME: doc & name
+pub enum LocAddr {
+    UnsignedConst(u64),
+    SignedConst(i64),
+    Address(u64),
+    /// Check `LocParam::is_deref()` to know if the value should be dereferenced.
+    Reg(u32),
+    /// Check `LocParam::is_deref()` to know if the value should be dereferenced.
+    Regs(u32, u32),
+    /// Check `LocParam::is_deref()` to know if the value should be dereferenced.
+    RegOffset(u32, i128),
+    Unknown,
+}
+
+/// Rust representation for BTF type `BTF_KIND_LOC_PROTO`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocProto {
+    btf_type: cbtf::btf_type,
+    parameters: Vec<LocProtoParam>,
+}
+
+impl LocProto {
+    fn from_reader<R: Read>(
+        reader: &mut R,
+        endianness: &cbtf::Endianness,
+        btf_type: cbtf::btf_type,
+    ) -> Result<LocProto> {
+        let mut parameters = Vec::new();
+        for _ in 0..btf_type.vlen() {
+            parameters.push(LocProtoParam::from_reader(reader, endianness)?);
+        }
+
+        Ok(LocProto {
+            btf_type,
+            parameters,
+        })
+    }
+}
+
+/// Rust representation of prototypes following a `BTF_KIND_LOC_PROTO`
+/// definition.
+/// FIXME: name
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocProtoParam {
+    param: cbtf::btfrs_loc_proto_param,
+}
+
+impl LocProtoParam {
+    fn from_reader<R: Read>(
+        reader: &mut R,
+        endianness: &cbtf::Endianness,
+    ) -> Result<LocProtoParam> {
+        Ok(LocProtoParam {
+            param: cbtf::btfrs_loc_proto_param::from_reader(reader, endianness)?,
+        })
+    }
+}
+
+impl BtfType for LocProtoParam {
+    fn get_type_id(&self) -> Option<u32> {
+        Some(self.param.r#type)
+    }
+}
+
+/// Rust representation for BTF type `BTF_KIND_LOC_SEC`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocSec {
+    btf_type: cbtf::btf_type,
+    locations: Vec<Location>,
+}
+
+impl LocSec {
+    fn from_reader<R: Read>(
+        reader: &mut R,
+        endianness: &cbtf::Endianness,
+        btf_type: cbtf::btf_type,
+    ) -> Result<LocSec> {
+        let mut locations = Vec::new();
+        for _ in 0..btf_type.vlen() {
+            locations.push(Location::from_reader(reader, endianness)?);
+        }
+
+        Ok(LocSec {
+            btf_type,
+            locations,
+        })
+    }
+}
+
+/// Rust representation for BTF type `BTF_KIND_LOC_SEC` entries.
+/// FIXME: name
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Location {
+    location: cbtf::btf_loc,
+}
+
+impl Location {
+    fn from_reader<R: Read>(reader: &mut R, endianness: &cbtf::Endianness) -> Result<Location> {
+        Ok(Location {
+            location: cbtf::btf_loc::from_reader(reader, endianness)?,
+        })
+    }
+}
+
+impl BtfType for Location {
+    fn get_type_id(&self) -> Option<u32> {
+        Some(self.location.loc_proto)
     }
 }

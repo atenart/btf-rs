@@ -94,6 +94,9 @@ pub(super) enum BtfKind {
     DeclTag = 17,
     TypeTag = 18,
     Enum64 = 19,
+    LocParam = 20,
+    LocProto = 21,
+    LocSec = 22,
     Unknown,
 }
 
@@ -121,6 +124,9 @@ impl BtfKind {
             17 => DeclTag,
             18 => TypeTag,
             19 => Enum64,
+            20 => LocParam,
+            21 => LocProto,
+            22 => LocSec,
             _ => Unknown,
         }
     }
@@ -141,6 +147,12 @@ impl BtfKind {
                     Datasec => vlen * mem::size_of::<btf_var_secinfo>(),
                     DeclTag => mem::size_of::<btf_decl_tag>(),
                     Enum64 => vlen * mem::size_of::<btf_enum64>(),
+                    LocParam => {
+                        mem::size_of::<btf_loc_param>()
+                            + vlen * mem::size_of::<btfrs_loc_param_value>()
+                    }
+                    LocProto => vlen * mem::size_of::<btfrs_loc_proto_param>(),
+                    LocSec => vlen * mem::size_of::<btf_loc>(),
                     Unknown => return None,
                 },
         )
@@ -174,6 +186,9 @@ impl BtfKind {
                 | Var
                 | DeclTag
                 | TypeTag
+                | LocParam
+                | LocProto
+                | LocSec
         )
     }
 }
@@ -375,4 +390,38 @@ pub(super) struct btf_enum64 {
     pub(super) name_off: u32,
     pub(super) val_lo32: u32,
     pub(super) val_hi32: u32,
+}
+
+#[cbtf_type]
+pub(super) struct btf_loc_param {
+    pub(super) flags: u32,
+    // values: [u32; 0],
+}
+
+// Define a dedicated struct for btf_loc_param::values members, to keep things
+// manageable in Rust.
+#[cbtf_type]
+pub(super) struct btfrs_loc_param_value {
+    pub(super) value: u32,
+}
+
+pub(super) const BTF_LOC_PARAM_SIGNED: u32 = 1 << 0;
+pub(super) const BTF_LOC_PARAM_CONST: u32 = 1 << 1;
+pub(super) const BTF_LOC_PARAM_ADDR: u32 = 1 << 2;
+pub(super) const BTF_LOC_PARAM_REG: u32 = 1 << 3;
+pub(super) const BTF_LOC_PARAM_DEREF: u32 = 1 << 4;
+pub(super) const BTF_LOC_PARAM_OFFSET: u32 = 1 << 5;
+
+// Define a dedicated struct for BTF_KIND_LOC_PROTO values (type ids), to keep
+// things manageable in Rust.
+#[cbtf_type]
+pub(super) struct btfrs_loc_proto_param {
+    pub(super) r#type: u32,
+}
+
+#[cbtf_type]
+pub(super) struct btf_loc {
+    pub(super) func: u32,
+    pub(super) loc_proto: u32,
+    pub(super) offset: u32,
 }
