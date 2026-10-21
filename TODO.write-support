@@ -1,0 +1,29 @@
+# Goals
+
+- Write a BTF section from scratch and store it in memory and/or a file.
+- Extend an existing BTF definition.
+- Allow merging multiple split BTFs with a single base.
+
+## Steps
+
+1. Add write capabilities to cbtf:: & btf::
+2. Allow to build Types
+3. Rework Btf to allow nested splits: use Option<Arc<Btf>>
+   instead of Option<Arc<BtfSection>> for the base.
+   - Do not expose this externally, the API should still act like
+     there's a single split file.
+4. Add `struct BtfBuilder(Btf)`:
+   - ::new() & ::from_btf(&Btf).
+   - Use self.0.obj (an empty cached split section) for new strings and
+     types addition.
+   - Impl Deref to allow access to the Btf API.
+   - Add type & string add API & str+type dedup: lookup and reuse if match:
+     + ::add_string() & ::add_type()
+     + return string offset / type id
+   - Allow converting back to Btf: split part is now the new str/types.
+     Previous split, if any, is hidden.
+5. Allow merging a split section into a BtfBuilder: single helper traversing
+   the definitions and adding str/types using the BtfBuilder API.
+6. Allow writing a raw BTF representation to a file / to memory:
+   - At the BtfSection level (for split definitions).
+   - At the Btf level (reuse the above point, str then types).
