@@ -12,6 +12,7 @@ use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
 
 use crate::{Error, Result};
 
+#[derive(Clone, Copy)]
 pub(super) enum Endianness {
     Little,
     Big,

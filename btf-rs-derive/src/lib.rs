@@ -39,7 +39,7 @@ pub fn cbtf_type_derive(input: TokenStream) -> TokenStream {
         impl #name {
             pub(super) fn from_bytes(
                 buf: &[u8],
-                endianness: &Endianness
+                endianness: crate::cbtf::Endianness
             ) -> crate::Result<Self> {
                 Ok(#name {
                     #( #bytes_fields )*
@@ -48,7 +48,7 @@ pub fn cbtf_type_derive(input: TokenStream) -> TokenStream {
 
             pub(super) fn from_reader<R: std::io::Read>(
                 reader: &mut R,
-                endianness: &crate::cbtf::Endianness,
+                endianness: crate::cbtf::Endianness,
             ) -> crate::Result<Self> {
                 Ok(#name {
                     #( #reader_fields )*

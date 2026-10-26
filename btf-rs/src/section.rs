@@ -214,7 +214,7 @@ impl CachedBtfSection {
         // Parse the kind layout, if any. Fallback on using the base one.
         let layout = match header.layout_len {
             0 if base.is_some() => base.as_ref().unwrap().layout().clone(),
-            _ => Layout::new(reader, &header, &endianness)?,
+            _ => Layout::new(reader, &header, endianness)?,
         };
 
         // Finally build our representation of the BTF types.
@@ -235,7 +235,7 @@ impl CachedBtfSection {
         let end_type_section = u64::checked_add(offset, header.type_len as u64)
             .ok_or(Error::Format("Invalid types section length".to_string()))?;
         while reader.stream_position()? < end_type_section {
-            let bt = cbtf::btf_type::from_reader(reader, &endianness)?;
+            let bt = cbtf::btf_type::from_reader(reader, endianness)?;
             if let Some(name_off) = bt.name_offset() {
                 // Look for the name in our own cache, and if not found try
                 // looking into the base one (if any).
@@ -258,7 +258,7 @@ impl CachedBtfSection {
                     unknown_kinds.insert(id, bt.kind());
                     layout.skip_type_vlen(reader, bt.kind(), bt.vlen())?
                 }
-                _ => types.push(Type::from_reader(reader, &endianness, bt)?),
+                _ => types.push(Type::from_reader(reader, endianness, bt)?),
             };
 
             id += 1;
@@ -393,7 +393,7 @@ impl MmapBtfSection {
         // Parse the kind layout, if any. Fallback on using the base one.
         let layout = match header.layout_len {
             0 if base.is_some() => base.as_ref().unwrap().layout().clone(),
-            _ => Layout::new(&mut reader, &header, &endianness)?,
+            _ => Layout::new(&mut reader, &header, endianness)?,
         };
 
         // Finally build our representation of the BTF types.
@@ -408,7 +408,7 @@ impl MmapBtfSection {
             .ok_or(Error::Format("Invalid types section length".to_string()))?;
         while reader.stream_position()? < end_type_section {
             offsets.push(reader.stream_position()? as usize);
-            layout.skip_type(&mut reader, &endianness)?;
+            layout.skip_type(&mut reader, endianness)?;
             types += 1;
         }
 
@@ -443,7 +443,7 @@ impl MmapBtfSection {
         let mmap = &self.mmap;
 
         for (id, offset) in self.type_offsets.iter().enumerate() {
-            let bt = cbtf::btf_type::from_bytes(&mmap[*offset..], &self.endianness)?;
+            let bt = cbtf::btf_type::from_bytes(&mmap[*offset..], self.endianness)?;
             let name_off = match bt.name_offset() {
                 Some(offset) => offset,
                 None => continue,
@@ -505,14 +505,14 @@ impl BtfBackend for MmapBtfSection {
 
         match self.type_offsets.get(local_id as usize - 1) {
             Some(offset) => {
-                let bt = cbtf::btf_type::from_bytes(&self.mmap[*offset..], &self.endianness)?;
+                let bt = cbtf::btf_type::from_bytes(&self.mmap[*offset..], self.endianness)?;
                 if matches!(cbtf::BtfKind::from_id(bt.kind()), cbtf::BtfKind::Undefined) {
                     return Err(Error::UndefinedKind(bt.kind()));
                 }
 
                 Type::from_bytes(
                     &self.mmap[(*offset + mem::size_of::<cbtf::btf_type>())..],
-                    &self.endianness,
+                    self.endianness,
                     bt,
                 )
             }
@@ -577,7 +577,7 @@ impl Layout {
     fn new<R: Read + Seek>(
         reader: &mut R,
         header: &cbtf::btf_header,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
     ) -> Result<Self> {
         let offset = u64::checked_add(header.hdr_len as u64, header.layout_off as u64).ok_or(
             Error::Format("Invalid kind layouts section offset".to_string()),
@@ -625,7 +625,7 @@ impl Layout {
     fn skip_type<R: Read + Seek>(
         &self,
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
     ) -> Result<()> {
         let bt = cbtf::btf_type::from_reader(reader, endianness)?;
         self.skip_type_vlen(reader, bt.kind(), bt.vlen())

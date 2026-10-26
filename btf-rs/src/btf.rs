@@ -336,7 +336,7 @@ impl Type {
     // Creates a new Type reading a BTF definition from a reader.
     pub(super) fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         bt: cbtf::btf_type,
     ) -> Result<Self> {
         // Each BTF type needs specific handling to parse its type-specific header.
@@ -371,7 +371,7 @@ impl Type {
     // Creates a new Type reading a BTF definition from bytes.
     pub(crate) fn from_bytes(
         buf: &[u8],
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         bt: cbtf::btf_type,
     ) -> Result<Self> {
         Self::from_reader(&mut Cursor::new(buf), endianness, bt)
@@ -454,7 +454,7 @@ pub struct Int {
 impl Int {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<Int> {
         Ok(Int {
@@ -515,7 +515,7 @@ pub struct Array {
 impl Array {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<Array> {
         Ok(Array {
@@ -547,7 +547,7 @@ pub struct Struct {
 impl Struct {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<Struct> {
         let mut members = Vec::new();
@@ -589,7 +589,7 @@ pub struct Member {
 impl Member {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         kind_flag: u32,
     ) -> Result<Member> {
         Ok(Member {
@@ -635,7 +635,7 @@ pub struct Enum {
 impl Enum {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<Enum> {
         let mut members = Vec::new();
@@ -669,7 +669,7 @@ pub struct EnumMember {
 }
 
 impl EnumMember {
-    fn from_reader<R: Read>(reader: &mut R, endianness: &cbtf::Endianness) -> Result<EnumMember> {
+    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<EnumMember> {
         Ok(EnumMember {
             btf_enum: cbtf::btf_enum::from_reader(reader, endianness)?,
         })
@@ -804,7 +804,7 @@ pub struct FuncProto {
 impl FuncProto {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<FuncProto> {
         let mut parameters = Vec::new();
@@ -833,7 +833,7 @@ pub struct Parameter {
 }
 
 impl Parameter {
-    fn from_reader<R: Read>(reader: &mut R, endianness: &cbtf::Endianness) -> Result<Parameter> {
+    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<Parameter> {
         Ok(Parameter {
             btf_param: cbtf::btf_param::from_reader(reader, endianness)?,
         })
@@ -864,7 +864,7 @@ pub struct Var {
 impl Var {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<Var> {
         Ok(Var {
@@ -906,7 +906,7 @@ pub struct Datasec {
 impl Datasec {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<Datasec> {
         let mut variables = Vec::new();
@@ -939,7 +939,7 @@ pub struct VarSecinfo {
 }
 
 impl VarSecinfo {
-    fn from_reader<R: Read>(reader: &mut R, endianness: &cbtf::Endianness) -> Result<VarSecinfo> {
+    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<VarSecinfo> {
         Ok(VarSecinfo {
             btf_var_secinfo: cbtf::btf_var_secinfo::from_reader(reader, endianness)?,
         })
@@ -992,7 +992,7 @@ pub struct DeclTag {
 impl DeclTag {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<DeclTag> {
         Ok(DeclTag {
@@ -1062,7 +1062,7 @@ pub struct Enum64 {
 impl Enum64 {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<Enum64> {
         let mut members = Vec::new();
@@ -1096,7 +1096,7 @@ pub struct Enum64Member {
 }
 
 impl Enum64Member {
-    fn from_reader<R: Read>(reader: &mut R, endianness: &cbtf::Endianness) -> Result<Enum64Member> {
+    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<Enum64Member> {
         Ok(Enum64Member {
             btf_enum64: cbtf::btf_enum64::from_reader(reader, endianness)?,
         })
@@ -1125,7 +1125,7 @@ pub struct LocParam {
 impl LocParam {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<LocParam> {
         let loc_param = cbtf::btf_loc_param::from_reader(reader, endianness)?;
@@ -1226,7 +1226,7 @@ pub struct LocProto {
 impl LocProto {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<LocProto> {
         let mut parameters = Vec::new();
@@ -1250,10 +1250,7 @@ pub struct LocProtoParam {
 }
 
 impl LocProtoParam {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: &cbtf::Endianness,
-    ) -> Result<LocProtoParam> {
+    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<LocProtoParam> {
         Ok(LocProtoParam {
             param: cbtf::btfrs_loc_proto_param::from_reader(reader, endianness)?,
         })
@@ -1276,7 +1273,7 @@ pub struct LocSec {
 impl LocSec {
     fn from_reader<R: Read>(
         reader: &mut R,
-        endianness: &cbtf::Endianness,
+        endianness: cbtf::Endianness,
         btf_type: cbtf::btf_type,
     ) -> Result<LocSec> {
         let mut locations = Vec::new();
@@ -1299,7 +1296,7 @@ pub struct Location {
 }
 
 impl Location {
-    fn from_reader<R: Read>(reader: &mut R, endianness: &cbtf::Endianness) -> Result<Location> {
+    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<Location> {
         Ok(Location {
             location: cbtf::btf_loc::from_reader(reader, endianness)?,
         })
