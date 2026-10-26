@@ -9,6 +9,7 @@ use std::{
     sync::Arc,
 };
 
+use btf_rs_derive::btf_type;
 use fallible_iterator::FallibleIterator;
 use memmap2::MmapOptions;
 
@@ -340,32 +341,41 @@ impl Type {
         bt: cbtf::btf_type,
     ) -> Result<Self> {
         // Each BTF type needs specific handling to parse its type-specific header.
-        use cbtf::BtfKind;
-        Ok(match BtfKind::from_id(bt.kind()) {
-            BtfKind::Int => Type::Int(Int::from_reader(reader, endianness, bt)?),
-            BtfKind::Ptr => Type::Ptr(Ptr::new(bt)),
-            BtfKind::Array => Type::Array(Array::from_reader(reader, endianness, bt)?),
-            BtfKind::Struct => Type::Struct(Struct::from_reader(reader, endianness, bt)?),
-            BtfKind::Union => Type::Union(Struct::from_reader(reader, endianness, bt)?),
-            BtfKind::Enum => Type::Enum(Enum::from_reader(reader, endianness, bt)?),
-            BtfKind::Fwd => Type::Fwd(Fwd::new(bt)),
-            BtfKind::Typedef => Type::Typedef(Typedef::new(bt)),
-            BtfKind::Volatile => Type::Volatile(Volatile::new(bt)),
-            BtfKind::Const => Type::Const(Volatile::new(bt)),
-            BtfKind::Restrict => Type::Restrict(Volatile::new(bt)),
-            BtfKind::Func => Type::Func(Func::new(bt)),
-            BtfKind::FuncProto => Type::FuncProto(FuncProto::from_reader(reader, endianness, bt)?),
-            BtfKind::Var => Type::Var(Var::from_reader(reader, endianness, bt)?),
-            BtfKind::Datasec => Type::Datasec(Datasec::from_reader(reader, endianness, bt)?),
-            BtfKind::Float => Type::Float(Float::new(bt)),
-            BtfKind::DeclTag => Type::DeclTag(DeclTag::from_reader(reader, endianness, bt)?),
-            BtfKind::TypeTag => Type::TypeTag(TypeTag::new(bt)),
-            BtfKind::Enum64 => Type::Enum64(Enum64::from_reader(reader, endianness, bt)?),
-            BtfKind::LocParam => Type::LocParam(LocParam::from_reader(reader, endianness, bt)?),
-            BtfKind::LocProto => Type::LocProto(LocProto::from_reader(reader, endianness, bt)?),
-            BtfKind::LocSec => Type::LocSec(LocSec::from_reader(reader, endianness, bt)?),
-            BtfKind::Undefined => return Err(Error::UndefinedKind(bt.kind())),
-        })
+        macro_rules! init_kinds {
+            ($kind:expr, $( $ty:ident ),*) => {
+                match $kind {
+                    $(
+                        cbtf::BtfKind::$ty => Type::$ty($ty::from_reader(reader, endianness, bt)?),
+                    )*
+                    cbtf::BtfKind::Undefined => return Err(Error::UndefinedKind(bt.kind())),
+                }
+            };
+        }
+        Ok(init_kinds!(
+            cbtf::BtfKind::from_id(bt.kind()),
+            Int,
+            Ptr,
+            Array,
+            Struct,
+            Union,
+            Enum,
+            Fwd,
+            Typedef,
+            Volatile,
+            Const,
+            Restrict,
+            Func,
+            FuncProto,
+            Var,
+            Datasec,
+            Float,
+            DeclTag,
+            TypeTag,
+            Enum64,
+            LocParam,
+            LocProto,
+            LocSec
+        ))
     }
 
     // Creates a new Type reading a BTF definition from bytes.
@@ -445,24 +455,13 @@ pub trait BtfType {
 }
 
 /// Rust representation for BTF type `BTF_KIND_INT`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Int {
     btf_type: cbtf::btf_type,
     btf_int: cbtf::btf_int,
 }
 
 impl Int {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<Int> {
-        Ok(Int {
-            btf_type,
-            btf_int: cbtf::btf_int::from_reader(reader, endianness)?,
-        })
-    }
-
     pub fn is_signed(&self) -> bool {
         self.btf_int.encoding() & cbtf::BTF_INT_SIGNED == cbtf::BTF_INT_SIGNED
     }
@@ -487,15 +486,9 @@ impl BtfType for Int {
 }
 
 /// Rust representation for BTF type `BTF_KIND_PTR`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Ptr {
     btf_type: cbtf::btf_type,
-}
-
-impl Ptr {
-    fn new(btf_type: cbtf::btf_type) -> Ptr {
-        Ptr { btf_type }
-    }
 }
 
 impl BtfType for Ptr {
@@ -505,7 +498,7 @@ impl BtfType for Ptr {
 }
 
 /// Rust representation for BTF type `BTF_KIND_ARRAY`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Array {
     btf_type: cbtf::btf_type,
     btf_array: cbtf::btf_array,
@@ -513,17 +506,6 @@ pub struct Array {
 
 #[allow(clippy::len_without_is_empty)]
 impl Array {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<Array> {
-        Ok(Array {
-            btf_type,
-            btf_array: cbtf::btf_array::from_reader(reader, endianness)?,
-        })
-    }
-
     /// Number of elements in the `Array`.
     pub fn len(&self) -> usize {
         self.btf_array.nelems as usize
@@ -624,7 +606,7 @@ impl BtfType for Member {
 }
 
 /// Rust representation for BTF type `BTF_KIND_ENUM`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Enum {
     btf_type: cbtf::btf_type,
     /// The enum members information. Use `.len()` to count them.
@@ -633,20 +615,6 @@ pub struct Enum {
 
 #[allow(clippy::len_without_is_empty)]
 impl Enum {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<Enum> {
-        let mut members = Vec::new();
-
-        for _ in 0..btf_type.vlen() {
-            members.push(EnumMember::from_reader(reader, endianness)?);
-        }
-
-        Ok(Enum { btf_type, members })
-    }
-
     pub fn is_signed(&self) -> bool {
         self.btf_type.kind_flag() == 1
     }
@@ -663,18 +631,12 @@ impl BtfType for Enum {
 }
 
 /// Represents an [`Enum`] member.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct EnumMember {
     btf_enum: cbtf::btf_enum,
 }
 
 impl EnumMember {
-    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<EnumMember> {
-        Ok(EnumMember {
-            btf_enum: cbtf::btf_enum::from_reader(reader, endianness)?,
-        })
-    }
-
     pub fn val(&self) -> u32 {
         self.btf_enum.val
     }
@@ -687,16 +649,12 @@ impl BtfType for EnumMember {
 }
 
 /// Rust representation for BTF type `BTF_KIND_FWD`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Fwd {
     btf_type: cbtf::btf_type,
 }
 
 impl Fwd {
-    fn new(btf_type: cbtf::btf_type) -> Fwd {
-        Fwd { btf_type }
-    }
-
     /// Tests if the forward declaration is for a struct type.
     pub fn is_struct(&self) -> bool {
         self.btf_type.kind_flag() == 0
@@ -715,15 +673,9 @@ impl BtfType for Fwd {
 }
 
 /// Rust representation for BTF type `BTF_KIND_TYPEDEF`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Typedef {
     btf_type: cbtf::btf_type,
-}
-
-impl Typedef {
-    fn new(btf_type: cbtf::btf_type) -> Typedef {
-        Typedef { btf_type }
-    }
 }
 
 impl BtfType for Typedef {
@@ -737,15 +689,9 @@ impl BtfType for Typedef {
 }
 
 /// Rust representation for BTF type `BTF_KIND_VOLATILE`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Volatile {
     btf_type: cbtf::btf_type,
-}
-
-impl Volatile {
-    fn new(btf_type: cbtf::btf_type) -> Volatile {
-        Volatile { btf_type }
-    }
 }
 
 impl BtfType for Volatile {
@@ -761,16 +707,12 @@ pub type Const = Volatile;
 pub type Restrict = Volatile;
 
 /// Rust representation for BTF type `BTF_KIND_FUNC`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Func {
     btf_type: cbtf::btf_type,
 }
 
 impl Func {
-    fn new(btf_type: cbtf::btf_type) -> Func {
-        Func { btf_type }
-    }
-
     pub fn is_static(&self) -> bool {
         self.btf_type.vlen() == cbtf::BTF_FUNC_STATIC
     }
@@ -795,30 +737,13 @@ impl BtfType for Func {
 }
 
 /// Rust representation for BTF type `BTF_KIND_FUNC_PROTO`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct FuncProto {
     btf_type: cbtf::btf_type,
     pub parameters: Vec<Parameter>,
 }
 
 impl FuncProto {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<FuncProto> {
-        let mut parameters = Vec::new();
-
-        for _ in 0..btf_type.vlen() {
-            parameters.push(Parameter::from_reader(reader, endianness)?);
-        }
-
-        Ok(FuncProto {
-            btf_type,
-            parameters,
-        })
-    }
-
     pub fn return_type_id(&self) -> u32 {
         self.btf_type
             .r#type()
@@ -827,18 +752,12 @@ impl FuncProto {
 }
 
 /// Represents a [`FuncProto`] parameter.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Parameter {
     btf_param: cbtf::btf_param,
 }
 
 impl Parameter {
-    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<Parameter> {
-        Ok(Parameter {
-            btf_param: cbtf::btf_param::from_reader(reader, endianness)?,
-        })
-    }
-
     pub fn is_variadic(&self) -> bool {
         self.btf_param.name_off == 0 && self.btf_param.r#type == 0
     }
@@ -855,24 +774,13 @@ impl BtfType for Parameter {
 }
 
 /// Rust representation for BTF type `BTF_KIND_VAR`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Var {
     btf_type: cbtf::btf_type,
     btf_var: cbtf::btf_var,
 }
 
 impl Var {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<Var> {
-        Ok(Var {
-            btf_type,
-            btf_var: cbtf::btf_var::from_reader(reader, endianness)?,
-        })
-    }
-
     pub fn is_static(&self) -> bool {
         self.btf_var.linkage == cbtf::BTF_VAR_STATIC
     }
@@ -897,30 +805,13 @@ impl BtfType for Var {
 }
 
 /// Rust representation for BTF type `BTF_KIND_DATASEC`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Datasec {
     btf_type: cbtf::btf_type,
     pub variables: Vec<VarSecinfo>,
 }
 
 impl Datasec {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<Datasec> {
-        let mut variables = Vec::new();
-
-        for _ in 0..btf_type.vlen() {
-            variables.push(VarSecinfo::from_reader(reader, endianness)?);
-        }
-
-        Ok(Datasec {
-            btf_type,
-            variables,
-        })
-    }
-
     pub fn size(&self) -> usize {
         self.btf_type.size().expect("datasec should have a size")
     }
@@ -933,18 +824,12 @@ impl BtfType for Datasec {
 }
 
 /// Represents a [`Datasec`] variable.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct VarSecinfo {
     btf_var_secinfo: cbtf::btf_var_secinfo,
 }
 
 impl VarSecinfo {
-    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<VarSecinfo> {
-        Ok(VarSecinfo {
-            btf_var_secinfo: cbtf::btf_var_secinfo::from_reader(reader, endianness)?,
-        })
-    }
-
     pub fn offset(&self) -> u32 {
         self.btf_var_secinfo.offset
     }
@@ -961,16 +846,12 @@ impl BtfType for VarSecinfo {
 }
 
 /// Rust representation for BTF type `BTF_KIND_FLOAT`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Float {
     btf_type: cbtf::btf_type,
 }
 
 impl Float {
-    fn new(btf_type: cbtf::btf_type) -> Float {
-        Float { btf_type }
-    }
-
     pub fn size(&self) -> usize {
         self.btf_type.size().expect("float should have a size")
     }
@@ -983,24 +864,13 @@ impl BtfType for Float {
 }
 
 /// Rust representation for BTF type `BTF_KIND_DECL_TAG`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct DeclTag {
     btf_type: cbtf::btf_type,
     btf_decl_tag: cbtf::btf_decl_tag,
 }
 
 impl DeclTag {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<DeclTag> {
-        Ok(DeclTag {
-            btf_type,
-            btf_decl_tag: cbtf::btf_decl_tag::from_reader(reader, endianness)?,
-        })
-    }
-
     pub fn component_index(&self) -> Option<u32> {
         let component_idx = self.btf_decl_tag.component_idx;
         match component_idx {
@@ -1025,16 +895,12 @@ impl BtfType for DeclTag {
 }
 
 /// Rust representation for BTF type `BTF_KIND_TYPE_TAG`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct TypeTag {
     btf_type: cbtf::btf_type,
 }
 
 impl TypeTag {
-    fn new(btf_type: cbtf::btf_type) -> TypeTag {
-        TypeTag { btf_type }
-    }
-
     pub fn is_attribute(&self) -> bool {
         self.btf_type.kind_flag() == 1
     }
@@ -1051,7 +917,7 @@ impl BtfType for TypeTag {
 }
 
 /// Rust representation for BTF type `BTF_KIND_ENUM64`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Enum64 {
     btf_type: cbtf::btf_type,
     /// The enum members information. Use `.len()` to count them.
@@ -1060,20 +926,6 @@ pub struct Enum64 {
 
 #[allow(clippy::len_without_is_empty)]
 impl Enum64 {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<Enum64> {
-        let mut members = Vec::new();
-
-        for _ in 0..btf_type.vlen() {
-            members.push(Enum64Member::from_reader(reader, endianness)?);
-        }
-
-        Ok(Enum64 { btf_type, members })
-    }
-
     pub fn is_signed(&self) -> bool {
         self.btf_type.kind_flag() == 1
     }
@@ -1090,18 +942,12 @@ impl BtfType for Enum64 {
 }
 
 /// Represents an [`Enum64`] member.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Enum64Member {
     btf_enum64: cbtf::btf_enum64,
 }
 
 impl Enum64Member {
-    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<Enum64Member> {
-        Ok(Enum64Member {
-            btf_enum64: cbtf::btf_enum64::from_reader(reader, endianness)?,
-        })
-    }
-
     pub fn val(&self) -> u64 {
         ((self.btf_enum64.val_hi32 as u64) << 32) | self.btf_enum64.val_lo32 as u64
     }
@@ -1114,7 +960,7 @@ impl BtfType for Enum64Member {
 }
 
 /// Rust representation for BTF type `BTF_KIND_LOC_PARAM`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct LocParam {
     btf_type: cbtf::btf_type,
     loc_param: cbtf::btf_loc_param,
@@ -1123,27 +969,6 @@ pub struct LocParam {
 }
 
 impl LocParam {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<LocParam> {
-        let loc_param = cbtf::btf_loc_param::from_reader(reader, endianness)?;
-
-        let mut values = Vec::new();
-        for _ in 0..btf_type.vlen() {
-            values.push(cbtf::btfrs_loc_param_value::from_reader(
-                reader, endianness,
-            )?);
-        }
-
-        Ok(LocParam {
-            btf_type,
-            loc_param,
-            values,
-        })
-    }
-
     pub fn addr(&self) -> LocAddr {
         let flags = self.loc_param.flags;
         let vlen = self.btf_type.vlen();
@@ -1217,44 +1042,18 @@ pub enum LocAddr {
 }
 
 /// Rust representation for BTF type `BTF_KIND_LOC_PROTO`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct LocProto {
     btf_type: cbtf::btf_type,
     parameters: Vec<LocProtoParam>,
 }
 
-impl LocProto {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<LocProto> {
-        let mut parameters = Vec::new();
-        for _ in 0..btf_type.vlen() {
-            parameters.push(LocProtoParam::from_reader(reader, endianness)?);
-        }
-
-        Ok(LocProto {
-            btf_type,
-            parameters,
-        })
-    }
-}
-
 /// Rust representation of prototypes following a `BTF_KIND_LOC_PROTO`
 /// definition.
 /// FIXME: name
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct LocProtoParam {
     param: cbtf::btfrs_loc_proto_param,
-}
-
-impl LocProtoParam {
-    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<LocProtoParam> {
-        Ok(LocProtoParam {
-            param: cbtf::btfrs_loc_proto_param::from_reader(reader, endianness)?,
-        })
-    }
 }
 
 impl BtfType for LocProtoParam {
@@ -1264,43 +1063,17 @@ impl BtfType for LocProtoParam {
 }
 
 /// Rust representation for BTF type `BTF_KIND_LOC_SEC`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct LocSec {
     btf_type: cbtf::btf_type,
     locations: Vec<Location>,
 }
 
-impl LocSec {
-    fn from_reader<R: Read>(
-        reader: &mut R,
-        endianness: cbtf::Endianness,
-        btf_type: cbtf::btf_type,
-    ) -> Result<LocSec> {
-        let mut locations = Vec::new();
-        for _ in 0..btf_type.vlen() {
-            locations.push(Location::from_reader(reader, endianness)?);
-        }
-
-        Ok(LocSec {
-            btf_type,
-            locations,
-        })
-    }
-}
-
 /// Rust representation for BTF type `BTF_KIND_LOC_SEC` entries.
 /// FIXME: name
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[btf_type]
 pub struct Location {
     location: cbtf::btf_loc,
-}
-
-impl Location {
-    fn from_reader<R: Read>(reader: &mut R, endianness: cbtf::Endianness) -> Result<Location> {
-        Ok(Location {
-            location: cbtf::btf_loc::from_reader(reader, endianness)?,
-        })
-    }
 }
 
 impl BtfType for Location {
