@@ -972,6 +972,23 @@ fn resolve_regex(btf: Btf) {
     assert!(reasons.is_empty());
 }
 
+#[test_case(Backend::Cache)]
+#[test_case(Backend::Mmap)]
+fn write_bijection(backend: Backend) {
+    let input: Vec<u8> = read("tests/assets/btf/vmlinux").unwrap();
+
+    let btf = Btf::from_file_with_backend("tests/assets/btf/vmlinux", backend).unwrap();
+    let mut output = Vec::new();
+    btf.base().write(&mut output).unwrap();
+
+    assert!(output.len() <= input.len()); // The input might be padded.
+    for i in 0..output.len() {
+        if output[i] != input[i] {
+            panic!("Byte {i} differs");
+        }
+    }
+}
+
 fn btfc_files() -> BtfCollection {
     let mut btfc = BtfCollection::from_file("tests/assets/btf/vmlinux").unwrap();
     btfc.add_split_btf_from_file("tests/assets/btf/openvswitch")

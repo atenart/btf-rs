@@ -2,7 +2,7 @@ use std::{
     cmp,
     collections::HashMap,
     ffi::CStr,
-    io::{BufRead, Cursor, Read, Seek, SeekFrom},
+    io::{BufRead, Cursor, Read, Seek, SeekFrom, Write},
     mem,
     sync::Arc,
 };
@@ -29,6 +29,15 @@ impl BtfSection {
         base: Option<Arc<BtfSection>>,
     ) -> Result<Self> {
         Ok(Self(Box::new(CachedBtfSection::new(reader, base)?)))
+    }
+
+    /// Write a BTF representation of the current section. This can be used to
+    /// store the BTF data on-disk.
+    // TODO/FIXME:
+    // - do not hardcode endianness
+    // - expose endianness??
+    pub fn write<W: Write>(&self, w: &mut W) -> Result<()> {
+        self.0.write(w, cbtf::Endianness::Little)
     }
 
     /// Find a list of BTF ids with a given name.
@@ -127,6 +136,8 @@ impl BtfSection {
 // Helpers implemented by BTF backends to allow querying the BTF definitions
 // (types, names, etc).
 pub(super) trait BtfBackend {
+    // Write the section as BTF data to the provided writer.
+    fn write(&self, w: &mut dyn Write, endianness: cbtf::Endianness) -> Result<()>;
     // Access the BTF header as a reference.
     fn header(&self) -> &cbtf::btf_header;
     // Access the layout.
@@ -285,6 +296,29 @@ impl CachedBtfSection {
 }
 
 impl BtfBackend for CachedBtfSection {
+    fn write(&self, w: &mut dyn Write, endianness: cbtf::Endianness) -> Result<()> {
+        // Without support for adding strings and types into the cached section,
+        // we can safely ignore updating the header offsets and lengths.
+        self.header.write(w, endianness)?;
+        // We stay in sync with libbpf the ordering: types, (optional) layouts,
+        // strings.
+        self.types
+            .iter()
+            .skip(1) // Skip Void.
+            .try_for_each(|t| t.write(w, endianness))?;
+        self.layout.write(w, endianness)?;
+
+        // Strings must be ordered by their offset.
+        let mut offsets = self.str_cache.keys().collect::<Vec<_>>();
+        offsets.sort();
+        for off in offsets {
+            w.write_all(self.str_cache.get(off).unwrap().as_bytes())?;
+            w.write_all(&[0])?;
+        }
+
+        Ok(())
+    }
+
     fn header(&self) -> &cbtf::btf_header {
         &self.header
     }
@@ -461,6 +495,14 @@ impl MmapBtfSection {
 }
 
 impl BtfBackend for MmapBtfSection {
+    fn write(&self, w: &mut dyn Write, _: cbtf::Endianness) -> Result<()> {
+        // We can't add strings and types to a mmap backend, just duplicate the
+        // underlying data.
+        // FIXME: what about endianness?
+        w.write_all(&self.mmap)?;
+        Ok(())
+    }
+
     fn header(&self) -> &cbtf::btf_header {
         &self.header
     }
@@ -605,6 +647,10 @@ impl Layout {
         }
 
         Ok(Self { layouts })
+    }
+
+    fn write(&self, w: &mut dyn Write, endianness: cbtf::Endianness) -> Result<()> {
+        self.layouts.iter().try_for_each(|l| l.write(w, endianness))
     }
 
     // Given a kind is and its vlen returns the size it takes in memory.
