@@ -501,6 +501,10 @@ impl Int {
     pub fn bits(&self) -> usize {
         self.btf_int.bits()
     }
+
+    pub fn offset(&self) -> u32 {
+        self.btf_int.offset()
+    }
 }
 
 impl BtfType for Int {
