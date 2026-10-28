@@ -317,6 +317,25 @@ pub(super) struct btf_type {
 }
 
 impl btf_type {
+    pub(super) fn new(
+        kind: BtfKind,
+        name_off: u32,
+        vlen: u32,
+        kind_flag: bool,
+        size_type: u32,
+    ) -> Self {
+        let mut info = (kind as u32) << 24 | vlen;
+        if kind_flag {
+            info |= 1 << 31;
+        }
+
+        Self {
+            name_off,
+            info,
+            size_type,
+        }
+    }
+
     pub(super) fn name_offset(&self) -> Option<u32> {
         let offset = self.name_off;
         if offset > 0 {
@@ -363,6 +382,27 @@ pub(super) struct btf_int {
 }
 
 impl btf_int {
+    pub(super) fn new(bits_size: u32, offset: u32) -> Self {
+        Self {
+            data: (offset << 16) | bits_size,
+        }
+    }
+
+    pub(super) fn toggle_flag(&mut self, flag: u32, set: bool) -> Result<()> {
+        if flag & (BTF_INT_SIGNED | BTF_INT_CHAR | BTF_INT_BOOL) == 0 {
+            return Err(Error::Format(format!("Invalid BTF INT flag {flag:#x}")));
+        }
+
+        let flag = flag << 24;
+        if set {
+            self.data |= flag;
+        } else {
+            self.data &= !flag
+        }
+
+        Ok(())
+    }
+
     pub(super) fn encoding(&self) -> u32 {
         (self.data & 0x0f000000) >> 24
     }

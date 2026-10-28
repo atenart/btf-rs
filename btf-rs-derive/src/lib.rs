@@ -7,7 +7,7 @@ pub fn cbtf_type(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as Item);
 
     quote! {
-        #[derive(Clone, Copy, Debug, Eq, PartialEq, btf_rs_derive::CBtfType)]
+        #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, btf_rs_derive::CBtfType)]
         #[repr(C, packed)]
         #input
     }

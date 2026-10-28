@@ -1182,3 +1182,42 @@ fn btfc_resolve_regex(btfc: BtfCollection) {
     });
     assert!(reasons.is_empty());
 }
+
+#[test]
+fn new_types() {
+    // Int.
+    Int::new(8, 64, 0).unwrap();
+    Int::new(8, 64, 0).unwrap().signed(true).unwrap();
+    Int::new(1, 8, 0).unwrap().char(true).unwrap();
+    Int::new(1, 8, 0)
+        .unwrap()
+        .signed(true)
+        .unwrap()
+        .char(true)
+        .unwrap();
+    Int::new(4, 32, 0).unwrap().bool(true).unwrap();
+    Int::new(16, 128, 0)
+        .unwrap()
+        .signed(true)
+        .unwrap()
+        .char(false)
+        .unwrap()
+        .bool(false)
+        .unwrap();
+    assert!(Int::new(0, 0, 0).is_err());
+    assert!(Int::new(7, 56, 0).is_err());
+    assert!(Int::new(32, 256, 0).is_err());
+
+    let r#int = Int::new(4, 32, 2)
+        .unwrap()
+        .signed(true)
+        .unwrap()
+        .char(true)
+        .unwrap();
+    assert_eq!(r#int.is_signed(), true);
+    assert_eq!(r#int.is_char(), true);
+    assert_eq!(r#int.is_bool(), false);
+    assert_eq!(r#int.size(), 4);
+    assert_eq!(r#int.bits(), 32);
+    assert_eq!(r#int.offset(), 2);
+}

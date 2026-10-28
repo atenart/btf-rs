@@ -482,6 +482,43 @@ pub struct Int {
 }
 
 impl Int {
+    pub fn new(size: usize, bits_size: usize, offset: u32) -> Result<Self> {
+        if !size.is_power_of_two() || size > 16 {
+            return Err(Error::Format(
+                "size should be a power of 2 and <= 16".to_string(),
+            ));
+        }
+        if bits_size > size * 8 {
+            return Err(Error::Format("bits size should be <= size".to_string()));
+        }
+
+        Ok(Int {
+            btf_type: cbtf::btf_type::new(cbtf::BtfKind::Int, 0, 0, false, size as u32),
+            btf_int: cbtf::btf_int::new(bits_size as u32, offset),
+        })
+    }
+
+    pub fn signed(mut self, is_signed: bool) -> Result<Self> {
+        self.btf_int
+            .toggle_flag(cbtf::BTF_INT_SIGNED, is_signed)
+            .unwrap();
+        Ok(self)
+    }
+
+    pub fn char(mut self, is_char: bool) -> Result<Self> {
+        self.btf_int
+            .toggle_flag(cbtf::BTF_INT_CHAR, is_char)
+            .unwrap();
+        Ok(self)
+    }
+
+    pub fn bool(mut self, is_bool: bool) -> Result<Self> {
+        self.btf_int
+            .toggle_flag(cbtf::BTF_INT_BOOL, is_bool)
+            .unwrap();
+        Ok(self)
+    }
+
     pub fn is_signed(&self) -> bool {
         self.btf_int.encoding() & cbtf::BTF_INT_SIGNED == cbtf::BTF_INT_SIGNED
     }
