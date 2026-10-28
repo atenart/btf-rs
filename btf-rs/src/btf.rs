@@ -497,6 +497,10 @@ impl Int {
     pub fn size(&self) -> usize {
         self.btf_type.size().expect("int should have a size")
     }
+
+    pub fn bits(&self) -> usize {
+        self.btf_int.bits()
+    }
 }
 
 impl BtfType for Int {

@@ -371,8 +371,8 @@ impl btf_int {
         (self.data & 0x00ff0000) >> 16
     }
 
-    pub(super) fn bits(&self) -> u32 {
-        self.data & 0x000000ff
+    pub(super) fn bits(&self) -> usize {
+        (self.data & 0x000000ff) as usize
     }
 }
 
